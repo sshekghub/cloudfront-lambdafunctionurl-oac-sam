@@ -78,7 +78,7 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: MyCFToLambda
+        Name: MyCFNToLambdaURL
         SigningBehavior: always
         OriginAccessControlOriginType: lambda
         SigningProtocol: sigv4

@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'A SAM template will be used to create a CloudFront Distribution with
+  a Lambda  function URL as the origin. An Origin Access Control (OAC) of type ''lambda''
+  will be created  and associated with the CloudFront Distribution to ensure that
+  only CloudFront can access  the Lambda function URL. Appropriate invoke permissions
+  will also be granted to the Lambda  function. The Origin and Behaviors configuration
+  on the CloudFront Distribution will follow  best practices for a Lambda function
+  URL origin.
+
+  '
+Resources:
+  MyCFToLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: MyCFToLambda
+      Description: CloudFront and Lambda Function URL integration with OAC
+      MemorySize: 128
+      Timeout: 3
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      FunctionUrlConfig:
+        AuthType: AWS_IAM
+        InvokeMode: BUFFERED
+    Metadata:
+      SamResourceId: MyCFToLambda
+  MyCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+        - DomainName:
+            Fn::Select:
+            - 2
+            - Fn::Split:
+              - /
+              - Fn::GetAtt:
+                - MyCFToLambdaUrl
+                - FunctionUrl
+          Id: MyCFToLambdaOrigin
+          CustomOriginConfig:
+            OriginProtocolPolicy: https-only
+            OriginSSLProtocols:
+            - TLSv1.2
+            OriginKeepaliveTimeout: 60
+          OriginAccessControlId:
+            Ref: MyCloudFrontOriginAccessControl
+        Enabled: true
+        DefaultCacheBehavior:
+          TargetOriginId: MyCFToLambdaOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - OPTIONS
+          - PUT
+          - POST
+          - PATCH
+          - DELETE
+          CachePolicyId:
+            Ref: MyCachingDisabledPolicy
+          ForwardedValues:
+            QueryString: true
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+          MinimumProtocolVersion: TLSv1.2_2021
+        HttpVersion: http2
+        DefaultRootObject: index.html
+        PriceClass: PriceClass_All
+  MyLambdaInvokePermissionForCloudFront:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Ref: MyCFToLambda
+      Action: lambda:InvokeFunctionUrl
+      Principal: cloudfront.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:cloudfront::${AWS::AccountId}:distribution/${MyCloudFrontDistribution}
+      SourceAccount:
+        Fn::Sub: ${AWS::AccountId}
+  MyCloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: MyCFToLambda
+        SigningBehavior: always
+        OriginAccessControlOriginType: lambda
+        SigningProtocol: sigv4
+  MyCachingDisabledPolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: CachingDisabled
+        DefaultTTL: 0
+        MinTTL: 0
+        MaxTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingBrotli: false
+          EnableAcceptEncodingGzip: false
+          HeadersConfig:
+            HeaderBehavior: none
+          CookiesConfig:
+            CookieBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+Outputs:
+  CloudFrontDistributionId:
+    Description: The CloudFront Distribution ID
+    Value:
+      Ref: MyCloudFrontDistribution
+  CloudFrontDomainName:
+    Description: The CloudFront Distribution Domain Name
+    Value:
+      Fn::GetAtt:
+      - MyCloudFrontDistribution
+      - DomainName
+  LambdaFunctionDomain:
+    Description: Lambda Function URL domain.
+    Value:
+      Fn::Select:
+      - 2
+      - Fn::Split:
+        - /
+        - Fn::GetAtt:
+          - MyCFToLambdaUrl
+          - FunctionUrl
+  LambdaFunctionUrl:
+    Description: The Lambda Function URL
+    Value:
+      Fn::GetAtt:
+      - MyCFToLambdaUrl
+      - FunctionUrl
