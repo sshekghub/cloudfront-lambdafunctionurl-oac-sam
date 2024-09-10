@@ -10,10 +10,12 @@ Description: 'A SAM template will be used to create a CloudFront Distribution wi
 
   '
 Resources:
-  MyCFToLambda:
+  MyCFNToLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: MyCFToLambda
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-lambda-function
+      CodeUri: MyCFNToLambda
       Description: CloudFront and Lambda Function URL integration with OAC
       MemorySize: 128
       Timeout: 3
@@ -25,7 +27,7 @@ Resources:
         AuthType: AWS_IAM
         InvokeMode: BUFFERED
     Metadata:
-      SamResourceId: MyCFToLambda
+      SamResourceId: MyCFNToLambda
   MyCloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -37,9 +39,9 @@ Resources:
             - Fn::Split:
               - /
               - Fn::GetAtt:
-                - MyCFToLambdaUrl
+                - MyCFNToLambdaUrl
                 - FunctionUrl
-          Id: MyCFToLambdaOrigin
+          Id: MyCFNToLambdaOrigin
           CustomOriginConfig:
             OriginProtocolPolicy: https-only
             OriginSSLProtocols:
@@ -49,7 +51,7 @@ Resources:
             Ref: MyCloudFrontOriginAccessControl
         Enabled: true
         DefaultCacheBehavior:
-          TargetOriginId: MyCFToLambdaOrigin
+          TargetOriginId: MyCFNToLambdaOrigin
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods:
           - GET
@@ -73,7 +75,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName:
-        Ref: MyCFToLambda
+        Ref: MyCFNToLambda
       Action: lambda:InvokeFunctionUrl
       Principal: cloudfront.amazonaws.com
       SourceArn:
@@ -84,7 +86,8 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: MyCFNToLambdaURL
+        Name:
+          Fn::Sub: ${AWS::StackName}-oac-for-lambda-url
         SigningBehavior: always
         OriginAccessControlOriginType: lambda
         SigningProtocol: sigv4
@@ -92,7 +95,8 @@ Resources:
     Type: AWS::CloudFront::CachePolicy
     Properties:
       CachePolicyConfig:
-        Name: CachingDisabled
+        Name:
+          Fn::Sub: ${AWS::StackName}-cache-policy
         DefaultTTL: 0
         MinTTL: 0
         MaxTTL: 0
@@ -124,11 +128,11 @@ Outputs:
       - Fn::Split:
         - /
         - Fn::GetAtt:
-          - MyCFToLambdaUrl
+          - MyCFNToLambdaUrl
           - FunctionUrl
   LambdaFunctionUrl:
     Description: The Lambda Function URL
     Value:
       Fn::GetAtt:
-      - MyCFToLambdaUrl
+      - MyCFNToLambdaUrl
       - FunctionUrl
